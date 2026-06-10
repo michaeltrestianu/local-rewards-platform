@@ -1,0 +1,32 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+    ports:
+      - "5432:5432"
+    volumes:
+      - platform_pgdata:/var/lib/postgresql/data
+      # Runs only on first start of an empty volume. To pick up changes:
+      # make down && make up (down removes the volume).
+      - ./init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      platform:
+        # Stable DNS name for service containers from other compose projects;
+        # deliberately not "postgres" so it never shadows a repo's own.
+        aliases: [platform-postgres]
+
+networks:
+  platform:
+    # Fixed name (instead of the project-prefixed default) so each service
+    # repo can join it as an external network.
+    name: platform
+
+volumes:
+  platform_pgdata:
