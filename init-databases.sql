@@ -6,3 +6,9 @@ CREATE DATABASE identity OWNER identity;
 
 CREATE USER ledger WITH PASSWORD 'ledger';
 CREATE DATABASE ledger OWNER ledger;
+
+CREATE USER content WITH PASSWORD 'content';
+CREATE DATABASE content OWNER content;
+
+CREATE USER analytics WITH PASSWORD 'analytics';
+CREATE DATABASE analytics OWNER analytics;

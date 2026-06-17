@@ -88,9 +88,20 @@ function loginRequest(email, password) {
   return http.post(`${IDENTITY_URL}/login`, body, JSON_HEADERS);
 }
 
-function postPosting(adminToken, path, userRef, amount, reference) {
-  const body = JSON.stringify({ userRef, amount, reference });
+function postPosting(adminToken, path, userRef, amount, reference, reasonId) {
+  const body = JSON.stringify({ userRef, amount, reference, reasonId });
   return http.post(`${LEDGER_URL}${path}`, body, bearer(adminToken));
+}
+
+// Postings require an active reason; the run creates its own (kind 'both'
+// serves awards and redemptions alike).
+function createLoadTestReason(adminToken) {
+  const body = JSON.stringify({ label: 'E2E load test', kind: 'both' });
+  const res = http.post(`${LEDGER_URL}/reasons`, body, bearer(adminToken));
+  if (res.status !== 201) {
+    exec.test.abort(`creating the e2e load test reason failed: ${res.status} ${res.body}`);
+  }
+  return res.json('id');
 }
 
 export function setup() {
@@ -103,6 +114,7 @@ export function setup() {
     exec.test.abort(`admin login failed: ${adminSession.status} ${adminSession.body}`);
   }
   const adminToken = adminSession.json('accessToken');
+  const reasonId = createLoadTestReason(adminToken);
 
   const customers = [];
   for (let i = 0; i < CUSTOMER_POOL; i++) {
@@ -122,7 +134,7 @@ export function setup() {
 
     // Seed a balance so redemptions never hit an insufficient-points refusal:
     // this test measures the mixed workload, not overdraft handling.
-    const seeded = postPosting(adminToken, '/points/award', userRef, 10000, `e2e-seed-${runId}-${i}`);
+    const seeded = postPosting(adminToken, '/points/award', userRef, 10000, `e2e-seed-${runId}-${i}`, reasonId);
     if (seeded.status !== 200) {
       exec.test.abort(`seeding points for ${email} failed: ${seeded.status} ${seeded.body}`);
     }
@@ -130,7 +142,7 @@ export function setup() {
     customers.push({ email, userRef, accessToken: session.json('accessToken') });
   }
 
-  return { runId, adminToken, customers };
+  return { runId, adminToken, reasonId, customers };
 }
 
 // A signed-in customer checking their account and their points balance — one
@@ -151,14 +163,14 @@ export function customerJourney(data) {
 export function awardForPurchase(data) {
   const i = exec.scenario.iterationInTest;
   const c = data.customers[i % data.customers.length];
-  const res = postPosting(data.adminToken, '/points/award', c.userRef, 10, `e2e-award-${data.runId}-${i}`);
+  const res = postPosting(data.adminToken, '/points/award', c.userRef, 10, `e2e-award-${data.runId}-${i}`, data.reasonId);
   check(res, { 'points awarded for purchase': (r) => r.status === 200 });
 }
 
 export function redeemPoints(data) {
   const i = exec.scenario.iterationInTest;
   const c = data.customers[i % data.customers.length];
-  const res = postPosting(data.adminToken, '/points/deduct', c.userRef, 5, `e2e-redeem-${data.runId}-${i}`);
+  const res = postPosting(data.adminToken, '/points/deduct', c.userRef, 5, `e2e-redeem-${data.runId}-${i}`, data.reasonId);
   check(res, { 'points redeemed': (r) => r.status === 200 });
 }
 
