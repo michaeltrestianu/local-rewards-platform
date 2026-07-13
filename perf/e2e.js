@@ -5,7 +5,8 @@
 // Scenarios — a mixed workload of 100 concurrent customers with think time,
 // plus the platform acting on their accounts:
 //   customer_journey — each VU is a signed-in customer checking their account
-//                      (identity /me) and their points (ledger /me/points)
+//                      (identity /me) and their points on the seed business
+//                      (ledger /me/businesses/{ref}/points)
 //   purchases        — the rewards platform awards points for orders (admin)
 //   redemptions      — the rewards platform redeems points (admin)
 //   logins           — fresh customer sign-ins arriving throughout (bcrypt)
@@ -20,6 +21,9 @@ const IDENTITY_URL = __ENV.IDENTITY_URL || 'http://localhost:8080';
 const LEDGER_URL = __ENV.LEDGER_URL || 'http://localhost:8081';
 const ADMIN_EMAIL = __ENV.ADMIN_EMAIL || 'perf-admin@example.com';
 const ADMIN_PASSWORD = __ENV.ADMIN_PASSWORD || 'perf-admin-correct-horse';
+// The seed business every ledger route is scoped to; prep-admin.sh grants the
+// perf admin the business-admin role on the same ref.
+const BUSINESS_REF = __ENV.BUSINESS_REF || '00000000-0000-0000-0000-000000000001';
 const SMOKE = __ENV.SMOKE === '1';
 const CUSTOMER_POOL = SMOKE ? 10 : 100;
 const PASSWORD = 'perf-correct-horse';
@@ -90,14 +94,14 @@ function loginRequest(email, password) {
 
 function postPosting(adminToken, path, userRef, amount, reference, reasonId) {
   const body = JSON.stringify({ userRef, amount, reference, reasonId });
-  return http.post(`${LEDGER_URL}${path}`, body, bearer(adminToken));
+  return http.post(`${LEDGER_URL}/businesses/${BUSINESS_REF}${path}`, body, bearer(adminToken));
 }
 
 // Postings require an active reason; the run creates its own (kind 'both'
 // serves awards and redemptions alike).
 function createLoadTestReason(adminToken) {
   const body = JSON.stringify({ label: 'E2E load test', kind: 'both' });
-  const res = http.post(`${LEDGER_URL}/reasons`, body, bearer(adminToken));
+  const res = http.post(`${LEDGER_URL}/businesses/${BUSINESS_REF}/reasons`, body, bearer(adminToken));
   if (res.status !== 201) {
     exec.test.abort(`creating the e2e load test reason failed: ${res.status} ${res.body}`);
   }
@@ -108,7 +112,7 @@ export function setup() {
   const runId = Date.now();
 
   // The admin is a real identity user promoted by make perf; its session
-  // token must carry the admin role for the ledger posting endpoints.
+  // token must carry the business-admin claim for the ledger posting endpoints.
   const adminSession = loginRequest(ADMIN_EMAIL, ADMIN_PASSWORD);
   if (adminSession.status !== 200) {
     exec.test.abort(`admin login failed: ${adminSession.status} ${adminSession.body}`);
@@ -154,7 +158,7 @@ export function customerJourney(data) {
   const account = http.get(`${IDENTITY_URL}/me`, bearer(c.accessToken));
   check(account, { 'own account returned': (r) => r.status === 200 });
 
-  const points = http.get(`${LEDGER_URL}/me/points`, bearer(c.accessToken));
+  const points = http.get(`${LEDGER_URL}/me/businesses/${BUSINESS_REF}/points`, bearer(c.accessToken));
   check(points, { 'own points returned': (r) => r.status === 200 });
 
   sleep(1);
