@@ -12,3 +12,6 @@ CREATE DATABASE content OWNER content;
 
 CREATE USER analytics WITH PASSWORD 'analytics';
 CREATE DATABASE analytics OWNER analytics;
+
+CREATE USER notification WITH PASSWORD 'notification';
+CREATE DATABASE notification OWNER notification;
