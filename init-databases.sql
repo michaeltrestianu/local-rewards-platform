@@ -15,3 +15,6 @@ CREATE DATABASE analytics OWNER analytics;
 
 CREATE USER notification WITH PASSWORD 'notification';
 CREATE DATABASE notification OWNER notification;
+
+CREATE USER stamps WITH PASSWORD 'stamps';
+CREATE DATABASE stamps OWNER stamps;
